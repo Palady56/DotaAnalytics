@@ -6,8 +6,10 @@ import { comparePath, duoPath, parseAccountId } from "@/lib/duo";
 import { accountRefMessage, resolveAccountRef } from "@/lib/lookup";
 import { loadPassport, type CountRow, type HeroRow, type Passport, type Section } from "@/lib/passport";
 import { compareBlurb } from "@/lib/share";
+import { CompareCategories, type BattleFace } from "@/components/CompareCategories";
 import { RankMedal } from "@/components/RankMedal";
-import { formatDecimal, formatDuration, formatNumber, formatPercent, rankLabel } from "@/lib/stats";
+import { buildCompareView, namedLane, type ComparePlayer, type HeroSample, type LaneSample } from "@/lib/compare-categories";
+import { formatDecimal, formatDuration, formatNumber, formatPercent, gamesPhrase, kda, rankLabel } from "@/lib/stats";
 
 export const dynamic = "force-dynamic";
 
@@ -117,14 +119,12 @@ export default async function ComparePage({
       <section className="home-hero plain">
         <div>
           <h1>Сравнение</h1>
-          <p className="lead">Два профиля рядом: матчи, винрейт и герои.</p>
+          <p className="mode-note">
+            Сравнение ставит два уже сыгранных профиля рядом: винрейт, герои и линии. В строке видно, у кого число выше. Это не прогноз, кто выиграет следующую игру. Общие матчи этой пары смотрит <Link href="/duo">Дуэт</Link>.
+          </p>
         </div>
         <PairForm action="/compare" a={params.a} b={params.b} submit="Сравнить" />
-        <p className="muted">
-          Можно номер или ссылку steamcommunity.com. <Link href="/">Найти игрока</Link>
-          {" · "}
-          <Link href="/duo">Дуэт</Link> смотрит общие игры, это сравнение их не считает.
-        </p>
+        <p className="muted">Номер или ссылка Steam.</p>
       </section>
       {firstError ? <p className="error">{firstError}</p> : null}
       {secondError ? <p className="error">{secondError}</p> : null}
@@ -141,6 +141,31 @@ export default async function ComparePage({
             <PlayerHead side={left} />
             <PlayerHead side={right} />
           </div>
+          {a && b ? (
+            <CompareCategories
+              view={buildCompareView(comparePlayer(a), comparePlayer(b))}
+              leftId={a.accountId}
+              rightId={b.accountId}
+              leftName={a.profile.persona}
+              rightName={b.profile.persona}
+              leftRank={a.profile.rankTier}
+              rightRank={b.profile.rankTier}
+              leftPlace={a.profile.leaderboardRank}
+              rightPlace={b.profile.leaderboardRank}
+              poolA={a.heroes.ok ? a.heroes.data.length : null}
+              poolB={b.heroes.ok ? b.heroes.data.length : null}
+              gamesA={gamesOf(a.record)}
+              gamesB={gamesOf(b.record)}
+              leftFace={battleFace(a)}
+              rightFace={battleFace(b)}
+            />
+          ) : (
+            <section className="block">
+              <h2>Категории</h2>
+              {"error" in left ? <p className="empty">Профиль {formatNumber(left.id)} не загрузился.</p> : null}
+              {"error" in right ? <p className="empty">Профиль {formatNumber(right.id)} не загрузился.</p> : null}
+            </section>
+          )}
           {a && b ? <CompareTable left={a} right={b} /> : null}
           {a?.heroes.ok && b?.heroes.ok ? (
             <Overlap
@@ -191,6 +216,70 @@ function PlayerHead({ side }: { side: Side }) {
       {profile.rankTier ? <RankMedal tier={profile.rankTier} place={profile.leaderboardRank} /> : null}
     </article>
   );
+}
+
+function battleFace(passport: Passport): BattleFace {
+  const games = gamesOf(passport.record);
+  const kills = average(passport, "Убийства");
+  const deaths = average(passport, "Смерти");
+  const assists = average(passport, "Помощи");
+  const kdaText =
+    kills && deaths && assists && kills.n > 0 && kills.n === deaths.n && kills.n === assists.n
+      ? `${formatDecimal(kda(kills.value * kills.n, deaths.value * deaths.n, assists.value * assists.n))} · известно в ${formatNumber(kills.n)}`
+      : "нет данных";
+  const lane = namedLane(passport.lanes.ok ? passport.lanes.data : null);
+  return {
+    winRate: passport.record.ok ? formatPercent(passport.record.data.winRate) : "нет данных",
+    kda: kdaText,
+    games: games === null ? "нет данных" : gamesPhrase(games),
+    lane: lane ?? "линия не названа",
+  };
+}
+
+function comparePlayer(passport: Passport): ComparePlayer {
+  const kills = average(passport, "Убийства");
+  const deaths = average(passport, "Смерти");
+  const assists = average(passport, "Помощи");
+  const gpm = average(passport, "GPM");
+  const xpm = average(passport, "XPM");
+  const heroes: HeroSample[] | null = passport.heroes.ok
+    ? passport.heroes.data.map((hero) => ({
+        heroId: hero.heroId,
+        name: hero.name,
+        img: hero.img,
+        games: hero.games,
+        wins: hero.wins,
+      }))
+    : null;
+  const lanes: LaneSample[] | null = passport.lanes.ok
+    ? passport.lanes.data.map((lane) => ({ id: lane.id, label: lane.label, games: lane.games }))
+    : null;
+  return {
+    name: passport.profile.persona,
+    record: passport.record.ok ? { wins: passport.record.data.wins, losses: passport.record.data.losses } : null,
+    patchId: passport.patch.bucketId,
+    patchName: passport.patch.bucketName,
+    patchRecord: passport.patchRecord.ok
+      ? { wins: passport.patchRecord.data.wins, losses: passport.patchRecord.data.losses }
+      : null,
+    recent: passport.recent.ok ? passport.recent.data.played.map((match) => ({ won: match.won, turbo: match.turbo })) : null,
+    kda:
+      kills && deaths && assists
+        ? {
+            kills: kills.value * kills.n,
+            deaths: deaths.value * deaths.n,
+            assists: assists.value * assists.n,
+            nKills: kills.n,
+            nDeaths: deaths.n,
+            nAssists: assists.n,
+          }
+        : null,
+    recordGames: gamesOf(passport.record),
+    gpm: gpm ? { value: gpm.value, n: gpm.n } : null,
+    xpm: xpm ? { value: xpm.value, n: xpm.n } : null,
+    heroes,
+    lanes,
+  };
 }
 
 function CompareTable({ left, right }: { left: Passport; right: Passport }) {
@@ -283,22 +372,31 @@ function CompareTable({ left, right }: { left: Passport; right: Passport }) {
 
   return (
     <section className="block">
-      <h2>Цифры</h2>
-      <div className="cmp-list">
-        {rows.map((row) => (
-          <div className="cmp-row" key={row.label}>
-            <span className="cmp-label">{row.label}</span>
-            <span className="cmp-val" title={row.a}>{row.a}</span>
-            <span className={row.tone && row.delta.startsWith("+") ? "cmp-delta win" : row.tone && row.delta.startsWith("-") ? "cmp-delta loss" : "cmp-delta"}>
-              {row.delta}
-            </span>
-            <span className="cmp-val right" title={row.b}>{row.b}</span>
-          </div>
-        ))}
+      <h2>За историю</h2>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th />
+              <th>{left.profile.persona}</th>
+              <th>{right.profile.persona}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.label}>
+                <td>{row.label}</td>
+                <td>{row.a}</td>
+                <td>{row.b}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
+      <h3>Линии</h3>
       <div className="grid-2">
-        <CountBars title="Линии" rows={left.lanes.ok ? left.lanes.data : []} empty={left.lanes.ok ? "" : left.lanes.message} />
-        <CountBars title="Линии" rows={right.lanes.ok ? right.lanes.data : []} empty={right.lanes.ok ? "" : right.lanes.message} />
+        <CountBars title={left.profile.persona} rows={left.lanes.ok ? left.lanes.data : []} empty={left.lanes.ok ? "" : left.lanes.message} />
+        <CountBars title={right.profile.persona} rows={right.lanes.ok ? right.lanes.data : []} empty={right.lanes.ok ? "" : right.lanes.message} />
       </div>
     </section>
   );

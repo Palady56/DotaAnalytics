@@ -87,8 +87,10 @@ export function AppShell({
     ? "Матчи"
     : pathname.startsWith("/players/") && pathname.includes("/meta")
       ? "Своя мета"
-      : pathname.startsWith("/players/")
-        ? "Обзор"
+      : pathname.startsWith("/players/") && pathname.endsWith("/evolution")
+        ? "Эволюция"
+        : pathname.startsWith("/players/")
+          ? "Обзор"
         : pathname.startsWith("/matches/")
           ? "Матч"
           : pathname.startsWith("/heroes")

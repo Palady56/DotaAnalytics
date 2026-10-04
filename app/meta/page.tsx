@@ -16,6 +16,24 @@ import { formatNumber, formatPercent } from "@/lib/stats";
 
 export const dynamic = "force-dynamic";
 
+function heroesExplain(slice: string, sliceName: string, view: string): string {
+  const where =
+    slice === "turbo"
+      ? "Turbo отдельно от обычных игр. Винрейт здесь не смешивается с обычным режимом."
+      : slice === "pro"
+        ? "Профессиональные матчи. Это не то, как герой выигрывает в публичных играх. У про-игр рядом видно и число банов."
+        : slice === "pub"
+          ? "Публичные игры всех игроков, без Turbo и без профессиональных матчей."
+          : `Игры ранга ${sliceName}. Герои здесь могут отличаться от общего публичного списка.`;
+  const order =
+    view === "popular"
+      ? "Порядок «Частые»: сверху те, кого берут чаще всего. Винрейт рядом, но список выстроен по числу пиков."
+      : view === "all"
+        ? "Порядок «Все»: каждый герой этого списка, от самых частых к редким."
+        : "Порядок «Топ»: сверху герои, на которых побеждают чаще. В топ попадают те, на ком уже есть хотя бы 20 игр.";
+  return `${where} ${order}`;
+}
+
 export default async function MetaPage({
   searchParams,
 }: {
@@ -37,7 +55,7 @@ export default async function MetaPage({
   return (
     <main className="sheet">
       <h1>Герои</h1>
-      <p className="lead">{sliceName}</p>
+      <p className="mode-note">{heroesExplain(slice, sliceName, view)}</p>
       <SliceLinks current={slice} hrefFor={(item) => metaHref(item, view)} />
       <nav className="modes" aria-label="Порядок">
         <Link className="mode" href={metaHref(slice, "winning")} aria-current={view === "winning" ? "page" : undefined}>

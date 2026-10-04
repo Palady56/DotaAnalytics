@@ -5,7 +5,6 @@ import { PairForm } from "@/components/PairForm";
 import { RankMedal } from "@/components/RankMedal";
 import {
   PAIR_BADGE_N,
-  SCORE_SUPPORT_N,
   comparePath,
   duoBlurb,
   loadDuo,
@@ -14,7 +13,15 @@ import {
   type LanePair,
   type SharedMatch,
 } from "@/lib/duo";
-import { formatDecimal, formatDuration, formatNumber, formatPercent, formatWhen, rankLabel } from "@/lib/stats";
+import {
+  duoCopyText,
+  outcomeCards,
+  patchColumns,
+  pointsPhrase,
+  synergyStatusLabel,
+  tenCompare,
+} from "@/lib/duo-layout";
+import { formatDecimal, formatDuration, formatNumber, formatPercent, formatWhen, gamesPhrase, rankLabel } from "@/lib/stats";
 
 export const dynamic = "force-dynamic";
 
@@ -39,8 +46,6 @@ function PairBadges({ pair }: { pair: HeroPair }) {
   return (
     <>
       {pair.mostPlayed ? <span className="chip stable">чаще всего</span> : null}
-      {pair.best ? <span className="chip early">сильнее</span> : null}
-      {pair.worst ? <span className="chip low">слабее</span> : null}
       {pair.games < PAIR_BADGE_N ? <span className="chip low">мало игр</span> : null}
     </>
   );
@@ -85,7 +90,9 @@ export default async function DuoPairPage({ params }: { params: Promise<{ a: str
         <p className="together-mark">вместе</p>
         <DuoHead id={b} name={report.names.b} avatar={report.avatars.b} tier={report.ranks.b.tier} place={report.ranks.b.place} />
       </div>
-      <p className="lead">Сколько двое играют вместе и друг против друга.</p>
+      <p className="mode-note">
+        Дуэт считает общие игры этих двоих: сколько раз они были в одной команде и сколько раз друг против друга. Оценка показывает, выигрывают ли они вместе чаще, чем каждый играет сам по себе. Это уже сыгранные матчи, не прогноз следующей игры.
+      </p>
       <p>
         <Link className="action" href={comparePath(a, b)}>Открыть сравнение</Link>
       </p>
@@ -122,9 +129,9 @@ export default async function DuoPairPage({ params }: { params: Promise<{ a: str
                 </em>
               </article>
               <article className="stat-tile">
-                <span>Вместе, золото</span>
+                <span>Золото в минуту</span>
                 <strong>{togetherGpm === null ? "—" : formatDecimal(togetherGpm)}</strong>
-                <span className="muted">опыт {togetherXpm === null ? "—" : formatDecimal(togetherXpm)}</span>
+                <em>опыт {togetherXpm === null ? "—" : formatDecimal(togetherXpm)}</em>
               </article>
             </section>
           ) : (
@@ -154,29 +161,30 @@ export default async function DuoPairPage({ params }: { params: Promise<{ a: str
               <strong className={(window.synergy.observed ?? 0) >= 0.5 ? "win" : "loss"}>
                 {formatPercent(window.synergy.observed)}
               </strong>
-              <span className="muted">их другие недавние игры {formatPercent(window.synergy.pA)} и {formatPercent(window.synergy.pB)}</span>
+              <em>по отдельности {formatPercent(window.synergy.pA)} и {formatPercent(window.synergy.pB)}</em>
             </article>
             <article className="stat-tile">
-              <span>Вместе</span>
+              <span>Оценка</span>
               <strong className={scoreClass}>
-                {window.synergy.n < SCORE_SUPPORT_N || window.synergy.score === null ? "—" : formatDecimal(window.synergy.score)}
+                {window.synergy.score === null ? "—" : formatDecimal(window.synergy.score)}
               </strong>
-              <span className="muted">
-                {window.synergy.n < SCORE_SUPPORT_N ? "мало игр" : window.synergy.status === "above" ? "лучше, чем порознь" : window.synergy.status === "below" ? "хуже, чем порознь" : "как порознь"}
-              </span>
+              <em>{window.synergy.score === null ? "оценки нет" : `${scoreWords(window.synergy.status, window.synergy.n)} · из 100`}</em>
             </article>
           </section>
-          <p className="muted">Средняя игра {formatDuration(window.avgDuration)}</p>
+          <p>
+            Вместе {formatPercent(window.synergy.observed)}
+            {window.synergy.expected !== null ? `, по их отдельным играм выходило около ${formatPercent(window.synergy.expected)}` : ""}.
+            Средняя игра {formatDuration(window.avgDuration)}.
+          </p>
           {window.trend ? (
-            <p className="muted">
-              Последние 20: {formatPercent(window.trend.recent.winRate)} · предыдущие 20: {formatPercent(window.trend.previous.winRate)}
-            </p>
+            <p>Последние 20 — {formatPercent(window.trend.recent.winRate)}. До этого — {formatPercent(window.trend.previous.winRate)}.</p>
           ) : null}
+          <DuoReadout reportNames={report.names} window={window} patches={report.patches} />
 
           <section className="block">
             <h2>Герои вместе</h2>
             {window.pairs.length === 0 ? (
-              <p className="empty">В окне нет пары героев одной команды.</p>
+              <p className="empty">Вместе на героях пока пусто.</p>
             ) : (
               <div className="match-feed">
                 {window.pairs.map((pair) => (
@@ -191,7 +199,11 @@ export default async function DuoPairPage({ params }: { params: Promise<{ a: str
                         {formatNumber(pair.games)} игр · {formatNumber(pair.wins)} побед <PairBadges pair={pair} />
                       </span>
                     </span>
-                    <span className={(pair.winRate ?? 0) >= 0.5 ? "rate win" : "rate loss"}>{formatPercent(pair.winRate)}</span>
+                    {pair.games < 5 ? null : (
+                      <span className={pair.games >= PAIR_BADGE_N && (pair.winRate ?? 0) >= 0.5 ? "rate win" : pair.games >= PAIR_BADGE_N ? "rate loss" : "muted"}>
+                        {formatPercent(pair.winRate)}
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -201,7 +213,7 @@ export default async function DuoPairPage({ params }: { params: Promise<{ a: str
           <section className="block">
             <h2>Линии</h2>
             {window.lanes.length === 0 ? (
-              <p className="empty">Пар линий с двумя известными ролями нет.</p>
+              <p className="empty">Линии вместе не определились.</p>
             ) : (
               <div className="match-feed">
                 {window.lanes.map((lane: LanePair) => (
@@ -214,7 +226,10 @@ export default async function DuoPairPage({ params }: { params: Promise<{ a: str
                         {formatNumber(lane.games)} игр · {formatDuration(lane.avgDuration)}
                       </span>
                     </span>
-                    <span className={(lane.winRate ?? 0) >= 0.5 ? "rate win" : "rate loss"}>{formatPercent(lane.winRate)}</span>
+                    <span className={lane.games >= PAIR_BADGE_N && (lane.winRate ?? 0) >= 0.5 ? "rate win" : lane.games >= PAIR_BADGE_N ? "rate loss" : "muted"}>
+                      {formatPercent(lane.winRate)}
+                      {lane.games < PAIR_BADGE_N ? " · мало матчей" : ""}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -224,9 +239,9 @@ export default async function DuoPairPage({ params }: { params: Promise<{ a: str
           <section className="block">
             <h2>Матчи</h2>
             {window.against.length > 0 ? (
-              <p className="muted">
+              <p>
                 Друг против друга: {report.names.a} выиграл {formatNumber(window.against.filter((match) => match.won).length)} из{" "}
-                {formatNumber(window.against.length)}.
+                {gamesPhrase(window.against.length)}.
               </p>
             ) : null}
             <MatchList matches={matches} accountId={a} />
@@ -238,6 +253,121 @@ export default async function DuoPairPage({ params }: { params: Promise<{ a: str
       ) : null}
     </main>
   );
+}
+
+function DuoReadout({
+  reportNames,
+  window,
+  patches,
+}: {
+  reportNames: { a: string; b: string };
+  window: NonNullable<Awaited<ReturnType<typeof loadDuo>>["window"]>;
+  patches: { id: number; name: string; date: string }[];
+}) {
+  const synergy = window.synergy;
+  const status = synergyStatusLabel(synergy.status, synergy.n);
+  const matches = window.same.map((match) => ({
+    startTime: match.startTime,
+    won: match.won,
+    heroA: match.heroA,
+    heroB: match.heroB,
+    imgA: match.imgA,
+    imgB: match.imgB,
+  }));
+  const columns = patchColumns(matches, patches);
+  const cards = outcomeCards(window.pairs, window.lanes, columns.columns);
+  const tens = tenCompare(matches, patches);
+  const top = cards.find((card) => card.kind === "пара героев") ?? null;
+  const copy = duoCopyText({
+    nameA: reportNames.a,
+    nameB: reportNames.b,
+    same: synergy.n,
+    winRate: synergy.observed,
+    score: synergy.score,
+    status,
+    topPair: top && top.n >= 15 ? top.title : null,
+  });
+  const lastTen = matches.slice().sort((left, right) => (right.startTime ?? 0) - (left.startTime ?? 0)).slice(0, 10);
+  const lastTenRate = lastTen.length >= 10 ? lastTen.filter((match) => match.won).length / 10 : null;
+  const highlights = [...window.pairs].sort((left, right) => right.games - left.games || left.heroA - right.heroA).slice(0, 3);
+
+  return (
+    <>
+      {highlights.length > 0 ? (
+        <section>
+          <h2>Чаще вместе</h2>
+          <div className="hero-board">
+            {highlights.map((pair) => {
+              const wrClass = pair.winRate !== null && pair.games >= 5 && pair.winRate >= 0.5 ? "win" : pair.winRate !== null && pair.games >= 5 ? "loss" : undefined;
+              return (
+                <article className="hero-tile" key={`${pair.heroA}-${pair.heroB}`}>
+                  <span className="duo-faces">
+                    {pair.imgA ? <img src={pair.imgA} alt="" /> : <span className="portrait-fallback" />}
+                    {pair.imgB ? <img src={pair.imgB} alt="" /> : <span className="portrait-fallback" />}
+                  </span>
+                  <b>{pair.nameA} + {pair.nameB}</b>
+                  <span className={wrClass ? `rate ${wrClass}` : "muted"}>{pair.games < 5 ? gamesPhrase(pair.games) : formatPercent(pair.winRate)}</span>
+                  {pair.games >= 5 ? <span className="muted">{gamesPhrase(pair.games)}</span> : null}
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
+      {columns.columns.length > 0 ? (
+        <section className="block">
+          <h2>Патчи</h2>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Патч</th>
+                  <th>Матчи</th>
+                  <th>Винрейт</th>
+                </tr>
+              </thead>
+              <tbody>
+                {columns.columns.map((column) => (
+                  <tr key={column.name}>
+                    <td>Патч {column.name}</td>
+                    <td>{formatNumber(column.n)}{column.n < 15 ? " · мало" : ""}</td>
+                    <td className={column.winRate !== null && column.winRate >= 0.5 ? "win" : column.winRate !== null ? "loss" : undefined}>
+                      {formatPercent(column.winRate)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
+      {tens.enough && tens.recent && tens.previous ? (
+        <p>
+          Последние 10 — {formatPercent(tens.recent.winRate)}. Десятка до этого — {formatPercent(tens.previous.winRate)}, {pointsPhrase((tens.recent.winRate ?? 0) - (tens.previous.winRate ?? 0))}
+          {tens.pairChanged ? ` Частая пара сменилась: ${tens.previous.pair} → ${tens.recent.pair}.` : ""}
+        </p>
+      ) : lastTenRate !== null ? (
+        <p>Последние 10 вместе — {formatPercent(lastTenRate)}.</p>
+      ) : null}
+
+      <details>
+        <summary>Откуда оценка</summary>
+        <p>
+          {status}. Разница {pointsPhrase(synergy.delta)}. Интервал {formatPercent(synergy.lower)}–{formatPercent(synergy.upper)}.
+        </p>
+        <p className="duo-copy">{copy}</p>
+      </details>
+    </>
+  );
+}
+
+function scoreWords(status: string, n: number): string {
+  if (status === "above") return "выше, чем по отдельности";
+  if (status === "below") return "ниже, чем по отдельности";
+  if (status === "none") return "оценки нет";
+  return n < 30 ? "пока мало общих игр" : "рядом с их обычным результатом";
 }
 
 function DuoHead({
@@ -288,7 +418,7 @@ function MatchList({ matches, accountId }: { matches: SharedMatch[]; accountId: 
             <span className="kda">
               {formatNumber(match.kills)} / {formatNumber(match.deaths)} / {formatNumber(match.assists)}
               {match.killsB !== null ? ` · ${formatNumber(match.killsB)} / ${formatNumber(match.deathsB)} / ${formatNumber(match.assistsB)}` : ""}
-              {` · ${match.side === "same" ? "одна команда" : "соперники"}`}
+              {` · ${match.side === "same" ? "Вместе" : "Против"}`}
             </span>
           </span>
           <span className="match-side">

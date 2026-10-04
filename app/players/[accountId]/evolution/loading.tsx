@@ -1,6 +1,6 @@
 import { LoadingStage } from "@/components/LoadingStage";
 
-export default function LoadingMeta() {
+export default function LoadingEvolution() {
   return (
     <main className="sheet">
       <LoadingStage />

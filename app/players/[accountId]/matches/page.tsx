@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { HiddenHistory } from "@/components/HiddenHistory";
 import { MatchFiltersForm } from "@/components/MatchFiltersForm";
 import { MatchLine } from "@/components/MatchLine";
 import { PlayerModes } from "@/components/PlayerModes";
@@ -14,6 +15,7 @@ import {
   significantFlag,
 } from "@/lib/matches";
 import { type HeroStat, type NamedConstant, type PatchConstant } from "@/lib/opendota";
+import { historyClosed, loadPassport } from "@/lib/passport";
 import { dota } from "@/lib/sources";
 import { formatNumber } from "@/lib/stats";
 
@@ -35,7 +37,7 @@ export default async function MatchesPage({
   if (!Number.isSafeInteger(id) || id <= 0) notFound();
 
   const filters = parseMatchFilters(await searchParams);
-  const [listR, playerR, heroesR, modesR, lobbiesR, patchesR] = await Promise.allSettled([
+  const [listR, playerR, heroesR, modesR, lobbiesR, patchesR, passportR] = await Promise.allSettled([
     dota.getPlayerMatches(id, {
       limit: MATCH_PAGE_SIZE,
       offset: filters.offset,
@@ -55,6 +57,7 @@ export default async function MatchesPage({
     dota.getGameModes(),
     dota.getLobbyTypes(),
     dota.getPatches(),
+    loadPassport(id),
   ]);
 
   if (listR.status === "rejected") throw listR.reason instanceof Error ? listR.reason : new Error("История матчей недоступна");
@@ -73,6 +76,7 @@ export default async function MatchesPage({
   }
   const patches: PatchConstant[] = patchesR.status === "fulfilled" ? [...patchesR.value.data].sort((a, b) => b.id - a.id) : [];
   const persona = playerR.status === "fulfilled" ? playerR.value.data.profile?.personaname : null;
+  const closed = passportR.status === "fulfilled" && historyClosed(passportR.value);
   const rows = listR.value.data;
   const from = rows.length ? filters.offset + 1 : 0;
   const to = filters.offset + rows.length;
@@ -82,7 +86,14 @@ export default async function MatchesPage({
     <main className="sheet">
       <h1>{persona ?? "Матчи"}</h1>
       <PlayerModes accountId={id} current="matches" />
+      {closed ? <HiddenHistory /> : null}
+      {closed && rows.length === 0 ? null : (
+        <p className="mode-note">
+          Матчи — список игр этого игрока. В строке герой, счёт, длительность и победа или поражение. Пока не включено «включая Turbo», здесь обычные матчи. Фильтры оставляют патч, героя, линию или только победы.
+        </p>
+      )}
 
+      {closed && rows.length === 0 ? null : (
       <details className="filters-drawer">
         <summary>Фильтры</summary>
       <MatchFiltersForm
@@ -109,9 +120,10 @@ export default async function MatchesPage({
         heroes={heroOptions.map((hero) => ({ value: String(hero.id), label: hero.localized_name }))}
       />
       </details>
+      )}
 
       {rows.length === 0 ? (
-        <p className="empty">Матчей нет.</p>
+        closed ? null : <p className="empty">Матчей нет.</p>
       ) : (
         <div className="match-feed">
           {rows.map((row) => {
@@ -139,6 +151,7 @@ export default async function MatchesPage({
         </div>
       )}
 
+      {closed && rows.length === 0 ? null : (
       <p className="pager">
         {filters.offset > 0 ? (
           <Link href={matchListHref(id, filters, Math.max(0, filters.offset - MATCH_PAGE_SIZE))}>Назад</Link>
@@ -154,6 +167,7 @@ export default async function MatchesPage({
           <span className="muted">Дальше матчей в этом срезе нет</span>
         )}
       </p>
+      )}
     </main>
   );
 }

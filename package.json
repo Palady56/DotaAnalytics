@@ -4,7 +4,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "tsc -p tsconfig.test.json && node --test .test-dist/lib/expansion.test.js"
   },
   "dependencies": {
     "next": "^15.5.4",

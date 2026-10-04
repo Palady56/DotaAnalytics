@@ -217,6 +217,7 @@ export type DuoReport = {
   };
   bucket: { id: number; name: string; date: string | null } | null;
   letter: string | null;
+  patches: { id: number; name: string; date: string }[];
   peers: {
     ok: true;
     stale: boolean;
@@ -305,6 +306,7 @@ export async function loadDuo(a: number, b: number): Promise<DuoReport> {
       ranks,
       bucket: bucket ? { id: bucket.id, name: bucket.name, date: bucket.date } : null,
       letter: letterR.status === "fulfilled" ? letterR.value.letter : null,
+      patches: patchesR.status === "fulfilled" ? patchesR.value.data.map((patch) => ({ id: patch.id, name: patch.name, date: patch.date })) : [],
       peers,
       window: null,
       windowError:
@@ -467,6 +469,7 @@ export async function loadDuo(a: number, b: number): Promise<DuoReport> {
     ranks,
     bucket: bucket ? { id: bucket.id, name: bucket.name, date: bucket.date } : null,
     letter: letterR.status === "fulfilled" ? letterR.value.letter : null,
+    patches: patchesR.status === "fulfilled" ? patchesR.value.data.map((patch) => ({ id: patch.id, name: patch.name, date: patch.date })) : [],
     peers,
     windowError: null,
     window: {

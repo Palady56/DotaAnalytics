@@ -446,6 +446,13 @@ export async function loadPassport(accountId: number): Promise<Passport> {
   };
 }
 
+export function historyClosed(passport: Passport): boolean {
+  if (passport.profile.fullHistoryUnavailable) return true;
+  if (!passport.record.ok || !passport.recent.ok || !passport.heroes.ok) return false;
+  const games = passport.record.data.wins + passport.record.data.losses;
+  return games === 0 && passport.recent.data.played.length === 0 && passport.heroes.data.length === 0;
+}
+
 export function sortHeroes(rows: HeroRow[], sort: string | undefined): HeroRow[] {
   const copy = [...rows];
   if (sort === "robust") {

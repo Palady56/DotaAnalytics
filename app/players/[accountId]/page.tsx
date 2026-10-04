@@ -2,15 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActivityCalendar } from "@/components/ActivityCalendar";
+import { HiddenHistory } from "@/components/HiddenHistory";
 import { LifetimeBoard } from "@/components/LifetimeBoard";
 import { PlayerModes } from "@/components/PlayerModes";
 import { RankedMatches, type FeedMatch } from "@/components/RankedMatches";
 import { RankMedal } from "@/components/RankMedal";
 import { RememberRecent } from "@/components/RememberRecent";
+import { ShareProfile, type ProfileCard } from "@/components/ShareProfile";
+import { namedLane } from "@/lib/compare-categories";
 import { getSession } from "@/lib/current-session";
 import { TURBO_MODE } from "@/lib/matches";
 import { type HeroStat, type PlayerMatchRow } from "@/lib/opendota";
-import { loadPassport, sortHeroes, type CountRow } from "@/lib/passport";
+import { historyClosed, loadPassport, sortHeroes, type CountRow, type Passport } from "@/lib/passport";
 import { dota } from "@/lib/sources";
 import { passportBlurb } from "@/lib/share";
 import {
@@ -18,6 +21,7 @@ import {
   formatDuration,
   formatNumber,
   formatPercent,
+  gamesPhrase,
   playerWon,
   rankLabel,
 } from "@/lib/stats";
@@ -150,6 +154,8 @@ export default async function PlayerPage({
   const games = record ? record.wins + record.losses : null;
   const played = passport.recent.ok ? passport.recent.data.played : [];
   const formMax = Math.max(1, ...played.map((match) => match.form));
+  const closed = historyClosed(passport);
+  const blank = closed && (games === null || games === 0);
 
   return (
     <main className="sheet">
@@ -169,6 +175,12 @@ export default async function PlayerPage({
               </button>
             </form>
           ) : null}
+          <div className="profile-actions">
+            <Link className="action" href={`/players/${passport.accountId}/evolution`}>
+              Эволюция
+            </Link>
+            <ShareProfile card={profileCard(passport, games)} />
+          </div>
         </div>
         {passport.profile.rankTier ? (
           <div className="rank-badge">
@@ -181,7 +193,12 @@ export default async function PlayerPage({
       <PlayerModes accountId={passport.accountId} current="overview" />
 
       {waitSeconds ? <p className="muted">Повторить обновление можно через {waitSeconds} с.</p> : null}
-
+      {closed ? <HiddenHistory /> : null}
+      {blank ? null : (
+      <>
+      <p className="mode-note">
+        Обзор — короткая сводка игрока: ранг, винрейт, частые герои и последние матчи. Винрейт и число матчей сверху считаются без Turbo. В списке матчей ниже Turbo отмечен отдельно.
+      </p>
       <div className="board">
         <article className="stat-tile">
           <span>Матчи</span>
@@ -334,6 +351,26 @@ export default async function PlayerPage({
           />
         </section>
       ) : null}
+      </>
+      )}
     </main>
   );
+}
+
+function profileCard(passport: Passport, games: number | null): ProfileCard {
+  const top = passport.heroes.ok
+    ? [...passport.heroes.data].sort((left, right) => right.games - left.games || left.heroId - right.heroId)[0]
+    : undefined;
+  const lane = namedLane(passport.lanes.ok ? passport.lanes.data : null);
+  return {
+    name: passport.profile.persona,
+    rank: rankLabel(passport.profile.rankTier) ?? "Ранг не указан",
+    winRate: passport.record.ok ? formatPercent(passport.record.data.winRate) : "—",
+    matches: games === null ? "нет данных" : gamesPhrase(games),
+    slice: "без Turbo",
+    lane: lane ?? "линия не названа",
+    heroName: top?.name ?? null,
+    heroLine: top ? `${formatPercent(top.winRate)} · ${gamesPhrase(top.games)}` : null,
+    heroImg: top?.img ?? null,
+  };
 }

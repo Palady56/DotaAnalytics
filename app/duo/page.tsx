@@ -23,7 +23,9 @@ export default async function DuoPage({
       <section className="home-hero plain">
         <div>
           <h1>Дуэт</h1>
-          <p className="lead">Сколько двое играют вместе и друг против друга.</p>
+          <p className="mode-note">
+            Дуэт считает общие игры двух людей: сколько раз они были в одной команде и сколько раз друг против друга. Оценка показывает, выигрывают ли они вместе чаще, чем каждый играет сам по себе. Это уже сыгранные матчи, не прогноз следующей игры.
+          </p>
         </div>
         <PairForm action="/duo" a={params.a} b={params.b} submit="Открыть дуэт" />
         <p className="muted">
