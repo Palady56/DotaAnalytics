@@ -1,0 +1,10 @@
+export function Logo({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
+      <rect width="32" height="32" rx="8" fill="#1a2030" />
+      <rect x="6" y="18" width="5" height="8" rx="1.5" fill="#3dcc7a" />
+      <rect x="13.5" y="12" width="5" height="14" rx="1.5" fill="#7dffb2" />
+      <rect x="21" y="6" width="5" height="20" rx="1.5" fill="#e2b657" />
+    </svg>
+  );
+}

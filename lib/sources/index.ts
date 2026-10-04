@@ -1,0 +1,48 @@
+import {
+  getCounts,
+  getGameModes,
+  getHeroCatalog,
+  getHeroItemPopularity,
+  getHeroItemTimings,
+  getHeroMatchups,
+  getItems,
+  getLobbyTypes,
+  getMatch,
+  getPatches,
+  getPeers,
+  getPlayer,
+  getPlayerActivity,
+  getPlayerHeroes,
+  getPlayerMatches,
+  getRecentMatches,
+  getRegions,
+  getTotals,
+  getWinLoss,
+  searchPlayers,
+} from "@/lib/opendota";
+
+/** OpenDota remains the only live statistics source. STRATZ is not called from here. */
+export const dota = {
+  getPlayer,
+  getWinLoss,
+  getRecentMatches,
+  getPlayerHeroes,
+  getTotals,
+  getCounts,
+  getPeers,
+  getPatches,
+  getGameModes,
+  getLobbyTypes,
+  getHeroCatalog,
+  getHeroItemPopularity,
+  getHeroItemTimings,
+  getHeroMatchups,
+  getPlayerActivity,
+  getPlayerMatches,
+  getMatch,
+  getItems,
+  getRegions,
+  searchPlayers,
+};
+
+export type DotaSource = typeof dota;
